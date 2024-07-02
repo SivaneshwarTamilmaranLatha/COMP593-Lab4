@@ -1,13 +1,5 @@
-"""
-Description:
- Generates various reports from a gateway log file.
-
-Usage:
- python log_investigation.py log_path
-
-Parameters:
- log_path = Path of the gateway log file
-"""
+import re 
+import pandas as pd 
 import log_analysis_lib
 
 # Get the log file path from the command line
@@ -16,61 +8,89 @@ log_path = log_analysis_lib.get_file_path_from_cmd_line()
 
 def main():
     # Determine how much traffic is on each port
-    port_traffic = tally_port_traffic()
+    port_traffic = tally_port_traffic(log_path)
 
     # Per step 9, generate reports for ports that have 100 or more records
     for port, count in port_traffic.items():
         if count >= 100:
-            generate_port_traffic_report(port)
+            generate_port_traffic_report(log_path, port)
 
     # Generate report of invalid user login attempts
-    generate_invalid_user_report()
+    generate_invalid_user_report(log_path)
 
     # Generate log of records from source IP 220.195.35.40
-    generate_source_ip_log('220.195.35.40')
+    generate_source_ip_log(log_path, '220.195.35.40')
 
-def tally_port_traffic():
-    """Produces a dictionary of destination port numbers (key) that appear in a 
-    specified log file and a count of how many times they appear (value)
+def tally_port_traffic(log_path):
+    port_tally = {}
 
-    Returns:
-        dict: Dictionary of destination port number counts
-    """
-    # TODO: Complete function body per step 7
-    return {}
+    with open(log_path, 'r') as file:
+        for record in file:
+            # Get destination port with the use of regex
+            match = re.search(r'DPT=(\d+)', record)
+            if match:
+                dpt = match.group(1)
+                if dpt in port_tally:
+                    port_tally[dpt] += 1
+                else:
+                    port_tally[dpt] = 1
 
-def generate_port_traffic_report(port_number):
-    """Produces a CSV report of all network traffic in a log file for a specified 
-    destination port number.
+    return port_tally
 
-    Args:
-        port_number (str or int): Destination port number
-    """
-    # TODO: Complete function body per step 8
-    # Get data from records that contain the specified destination port
-    # Generate the CSV report
-    return
+def generate_port_traffic_report(log_path, destination_port):
+    report_data = []
 
-def generate_invalid_user_report():
-    """Produces a CSV report of all network traffic in a log file that show
-    an attempt to login as an invalid user.
-    """
-    # TODO: Complete function body per step 10
-    # Get data from records that show attempted invalid user login
-    # Generate the CSV report
-    return
+    with open(log_path, 'r') as file:
+        for record in file:
+            # Identify and catches the field that correpond
+            match = re.search(
+                r'(\w+\s+\d+\s+\d+:\d+:\d+)\s+.*SRC=(.*?) DST=(.*?) SPT=(.*?) DPT=(%s)' % destination_port, 
+                record
+            )
+            if match:
+                date_time, src_ip, dst_ip, src_port, dst_port = match.groups()
+                date, time = date_time.split(' ', 1)
+                report_data.append((date, time, src_ip, dst_ip, src_port, dst_port))
 
-def generate_source_ip_log(ip_address):
-    """Produces a plain text .log file containing all records from a source log
-    file that contain a specified source IP address.
+    # DataFrame to CSV
+    report_df = pd.DataFrame(report_data, columns=['Date', 'Time', 'Source IP', 'Destination IP', 'Source Port', 'Destination Port'])
+    report_df.to_csv(f'destination_port_{destination_port}_report.csv', index=False)
 
-    Args:
-        ip_address (str): Source IP address
-    """
-    # TODO: Complete function body per step 11
-    # Get all records that have the specified sourec IP address
-    # Save all records to a plain text .log file
-    return
+def generate_invalid_user_report(log_path):
+    report_data = []
+
+    with open(log_path, 'r') as file:
+        for record in file:
+            # Identify and catch the fields for invalid user login attempts
+            match = re.search(
+                r'(\w+\s+\d+\s+\d+:\d+:\d+)\s+.*Invalid user (\w+) from (.*?)\s', 
+                record
+            )
+            if match:
+                date_time, username, ip_address = match.groups()
+                date, time = date_time.split(' ', 1)
+                report_data.append((date, time, username, ip_address))
+
+    # DataFrame to CSV
+    report_df = pd.DataFrame(report_data, columns=['Date', 'Time', 'Username', 'IP Address'])
+    report_df.to_csv('invalid_users.csv', index=False)
+
+def generate_source_ip_log(log_path, ip_address): 
+    matching_records = [] 
+    
+    with open(log_path, 'r') as file:
+        for record in file: 
+            # Determine if this record extracts the source IP 
+            if f'SRC={ip_address}' in record:
+                matching_records.append(record.strip()) 
+ 
+    # Name output file name
+    output_file_name = f'source_ip_{ip_address.replace(".", "_")}.log' 
+ 
+    # Next, the records that has matched in both files are copied to the output file. 
+    with open(output_file_name, 'w') as output_file:
+        for record in matching_records:
+            output_file.write(record + '\n')
 
 if __name__ == '__main__':
     main()

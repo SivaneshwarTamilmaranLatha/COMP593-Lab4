@@ -1,46 +1,36 @@
-"""
-Library of functions that are useful for analyzing plain-text log files.
-"""
+import sys 
+import os 
 import re
+import pandas as pd
 
 def main():
-    # Get the log file path from the command line
-    log_path = get_file_path_from_cmd_line()
-
-    # TODO: Use filter_log_by_regex() to investigate the gateway log per Step 5
-
-    # TODO: Use filter_log_by_regex() to extract data from the gateway log per Step 6
-
-    return
+    # Retrieve the patrh of the log file  from the command line where the log file is located.
+    log_path = get_file_path_from_cmd_line() 
+ 
+    # Conduct a study on the gateway log 
+    filtered_records, _ = filter_log_by_regex(log_path, 'error', print_summary=True, print_records=True)
+ 
+    # Pull information from the gateway log 
+    filtered_records, extracted_data = filter_log_by_regex(log_path, r'SRC=(.*?) DST=(.*?) LEN=(.*?)')
+    extracted_df = pd.DataFrame(extracted_data, columns=('Source IP', 'Destination IP', 'Length')) 
 
 def get_file_path_from_cmd_line(param_num=1):
-    """Gets a file path from a command line parameter.
-
-    Exits script execution if no file path is specified as a command 
-    line parameter or the specified path is not for an existing file.
-
-    Args:
-        param_num (int): Parameter number from which to look for file path. Defaults to 1.
-
-    Returns:
-        str: File path
-    """
-    # TODO: Implement the function body per Step 3
-    return
-
+    # Verify if the parameter from the command line was provided 
+    if len(sys.argv) < param_num + 1:
+        print(f'Error: Pass log file path as command line parameter {param_num} expected to be missing. ') 
+        sys.exit('Script execution aborted')
+    
+    # Call the stored procedure and get the parameter value and store it in full path 
+    log_path = os.path.abspath(sys.argv[param_num]) 
+ 
+    # Perform a test to know if the file is present 
+    if not os.path.isfile(log_path):
+        print(f'Error: "{log_path}" does not point to any file. ') 
+        sys.exit('Script execution aborted')
+    
+    return log_path 
+ 
 def filter_log_by_regex(log_path, regex, ignore_case=True, print_summary=False, print_records=False):
-    """Gets a list of records in a log file that match a specified regex.
-
-    Args:
-        log_file (str): Path of the log file
-        regex (str): Regex filter
-        ignore_case (bool, optional): Enable case insensitive regex matching. Defaults to True.
-        print_summary (bool, optional): Enable printing summary of results. Defaults to False.
-        print_records (bool, optional): Enable printing all records that match the regex. Defaults to False.
-
-    Returns:
-        (list, list): List of records that match regex, List of tuples of captured data
-    """
     # Initalize lists returned by function
     filtered_records = []
     captured_data = []
@@ -55,21 +45,21 @@ def filter_log_by_regex(log_path, regex, ignore_case=True, print_summary=False, 
             match = re.search(regex, record, search_flags)
             if match:
                 # Add lines that match to list of filtered records
-                filtered_records.append(record[:-1]) # Remove the trailing new line
+                filtered_records.append(record.strip()) # Remove the trailing new line
                 # Check if regex match contains any capture groups
                 if match.lastindex:
                     # Add tuple of captured data to captured data list
                     captured_data.append(match.groups())
 
     # Print all records, if enabled
-    if print_records is True:
+    if print_records:
         print(*filtered_records, sep='\n', end='\n')
 
     # Print summary of results, if enabled
-    if print_summary is True:
+    if print_summary:
         print(f'The log file contains {len(filtered_records)} records that case-{"in" if ignore_case else ""}sensitive match the regex "{regex}".')
 
     return (filtered_records, captured_data)
 
-if __name__ == '__main__':
-    main()        
+if __name__ == '__main__': 
+    main() 
